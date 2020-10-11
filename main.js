@@ -1,7 +1,7 @@
 const path = require('path')
 const fs = require('fs')
-const { app, BrowserWindow, ipcMain, dialog } = require('electron')
-const { removeFile } = require('./utils')
+const {app, BrowserWindow, ipcMain, dialog} = require('electron')
+const {removeFile} = require('./utils')
 const Downloader = require('./downloader')
 
 // https://stackoverflow.com/questions/44880926/how-can-i-download-file-inside-app-folder-after-packaging
@@ -13,7 +13,9 @@ const Downloader = require('./downloader')
 const isDev = process.env.NODE_ENV === 'DEVELOP'
 
 const downloader = new Downloader({
-  outputPath: app.getPath('downloads')
+  outputPath: app.getPath('downloads'),
+  throttleValue: 200,
+  limit: 2,
 })
 
 // !: WINDOW SHIZZ =================
@@ -27,15 +29,11 @@ const createWindow = () => {
     transparent: true,
     frame: false,
     webPreferences: {
-      nodeIntegration: true
-    }
+      nodeIntegration: true,
+    },
   })
 
-  win.loadURL(
-    isDev
-      ? 'http://localhost:1234'
-      : `file://${path.join(__dirname, './dist/index.html')}`
-  )
+  win.loadURL(isDev ? 'http://localhost:1234' : `file://${path.join(__dirname, './dist/index.html')}`)
 
   win.setMenuBarVisibility(false)
   // win.webContents.openDevTools()
@@ -65,8 +63,8 @@ app.on('activate', () => {
 
 // !: DOWNLOAD SHIZZ =================
 
-ipcMain.on('download', async (event, { url, format }) => {
-  downloader.initDownload({ format, url })
+ipcMain.on('download', async (event, {url, format}) => {
+  downloader.initDownload({format, url})
 
   downloader.on('finish', data => {
     console.log('Downloaded: ', data.videoTitle, data.format)
