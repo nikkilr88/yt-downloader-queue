@@ -4,31 +4,31 @@ const EventEmitter = require('events')
 const ytdl = require('ytdl-core')
 const ffmpeg = require('fluent-ffmpeg')
 const sanitize = require('sanitize-filename')
-const { throttle } = require('throttle-debounce')
+const {throttle} = require('throttle-debounce')
 let ffmpegPath = require('ffmpeg-static')
 
 ffmpegPath = ffmpegPath.replace('app.asar', 'app.asar.unpacked')
 
 class Downloader extends EventEmitter {
-  constructor({ outputPath }) {
+  constructor({outputPath, throttleValue, limit}) {
     super()
 
     this._outputPath = outputPath
-    this._throttleValue = 100
+    this._throttleValue = throttleValue
 
     this.downloads = {}
 
     // Check format and call corresponding method to download file
     // We pass callback to the download method so we can limit how many downloads start at one time. We set the download limit as the second argument to async.queue
     this._downloadQueue = async.queue((task, next) => {
-      const downloadData = { fileData: task.fileData, url: task.url, next }
+      const downloadData = {fileData: task.fileData, url: task.url, next}
 
       if (task.format === 'mp3') {
         this.downloadMP3(downloadData)
       } else {
         this.downloadMP4(downloadData)
       }
-    }, 2)
+    }, limit)
 
     // This runs after all of the tasks in the queue are complete
     this._downloadQueue.drain(() => {
@@ -64,7 +64,7 @@ class Downloader extends EventEmitter {
     
   =============================================== */
 
-  async generateFileData({ format, url }) {
+  async generateFileData({format, url}) {
     const videoInfo = await ytdl.getBasicInfo(url)
 
     // Sanitize the filename and remove special characters. If we don't do this, we won't be able to save the file.
@@ -74,7 +74,7 @@ class Downloader extends EventEmitter {
     return {
       format,
       videoTitle,
-      path: `${this._outputPath}/${videoTitle}.${format}`
+      path: `${this._outputPath}/${videoTitle}.${format}`,
     }
   }
 
@@ -139,7 +139,7 @@ class Downloader extends EventEmitter {
 
   =============================================== */
 
-  async initDownload({ format, url }) {
+  async initDownload({format, url}) {
     this._limitListeners()
 
     // Check if URL is valid. If it's not, return an error
@@ -153,7 +153,7 @@ class Downloader extends EventEmitter {
 
     // Try to generate file data. If we get back an error, we return and emit the error
     try {
-      fileData = await this.generateFileData({ format, url })
+      fileData = await this.generateFileData({format, url})
     } catch (error) {
       return this.emit('error', new Error("Can't process video"))
     }
@@ -167,11 +167,11 @@ class Downloader extends EventEmitter {
     // TODO: Use URL as object property
     this.downloads[`${fileData.videoTitle}_${format}`] = {
       format,
-      name: fileData.videoTitle
+      name: fileData.videoTitle,
     }
 
     // Push the download into the queue
-    this._downloadQueue.push({ fileData, format, url })
+    this._downloadQueue.push({fileData, format, url})
   }
 
   /* ===============================================
@@ -181,9 +181,9 @@ class Downloader extends EventEmitter {
 
   =============================================== */
 
-  downloadMP3({ fileData, url, next }) {
+  downloadMP3({fileData, url, next}) {
     const stream = ytdl(url, {
-      quality: 'highestaudio'
+      quality: 'highestaudio',
     })
 
     stream.on(
@@ -191,12 +191,12 @@ class Downloader extends EventEmitter {
       throttle(this._throttleValue, (...args) =>
         this._handleProgress(...args, {
           name: fileData.videoTitle,
-          format: fileData.format
+          format: fileData.format,
         })
       )
     )
 
-    const proc = new ffmpeg({ source: stream }).setFfmpegPath(ffmpegPath)
+    const proc = new ffmpeg({source: stream}).setFfmpegPath(ffmpegPath)
 
     proc
       .format('mp3')
@@ -217,12 +217,12 @@ class Downloader extends EventEmitter {
 
   =============================================== */
 
-  downloadMP4 = ({ fileData, url, next }) => {
+  downloadMP4 = ({fileData, url, next}) => {
     // ? Improve video quality
     // https://github.com/fent/node-ytdl-core/blob/master/example/ffmpeg.js
 
     ytdl(url, {
-      quality: 'highest'
+      quality: 'highest',
     })
       .on('error', () => this.emit('error', new Error('Something went wrong')))
       .on(
@@ -230,7 +230,7 @@ class Downloader extends EventEmitter {
         throttle(this._throttleValue, (...rest) =>
           this._handleProgress(...rest, {
             name: fileData.videoTitle,
-            format: fileData.format
+            format: fileData.format,
           })
         )
       )
